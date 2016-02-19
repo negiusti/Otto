@@ -11,14 +11,14 @@ sd = tk.Text()
 numSongs = 0
 
 def start():
+    global p
     if os.path.exists("fifo.tmp"):
         subprocess.Popen('rm fifo.tmp', shell=True) 
-    subprocess.Popen('./a.out', shell=True)
+    p = subprocess.Popen('./portaudio/SenProj', shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     songDisplay()
 
 def on_closing():
-    subprocess.Popen('killall a.out', shell=True)    
-    subprocess.Popen('killall afplay', shell=True)
+    p.terminate()   
     if os.path.exists("fifo.tmp"):
         subprocess.Popen('rm fifo.tmp', shell=True)    
     top.destroy()
@@ -41,13 +41,12 @@ def songDisplay():
     top.after(int(duration*1000), songDisplay)
 
 def pause():
-    subprocess.Popen('killall a.out', shell=True)    
-    subprocess.Popen('killall afplay', shell=True)   
+    p.terminate()
     if os.path.exists("fifo.tmp"):
         subprocess.Popen('rm fifo.tmp', shell=True) 
 
 def skip():
-    subprocess.Popen('killall afplay', shell=True)
+## IMPLEMENT ##
     songDisplay()
 
 def createWidgets(top):
@@ -59,12 +58,12 @@ def createWidgets(top):
     top.startButton = tk.Button(top, text='start',
         command=start)
     top.startButton.grid()
-    top.skipButton = tk.Button(top, text='>>',
+    """top.skipButton = tk.Button(top, text='>>',
     command=skip)
     top.skipButton.grid()
     top.quitButton = tk.Button(top, text='pause',
         command=pause)
-    top.quitButton.grid()
+    top.quitButton.grid()"""
 
 #def helloCallBack():
    #tkMessageBox.showinfo( "Hello Python", "Hello World")

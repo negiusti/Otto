@@ -112,9 +112,9 @@ void readFmtChunk(uint32_t chunkLen) {
 	CHECK(fmttag == 1 || fmttag == 3);
 	numChannels = freadNum<uint16_t>(wavfile);
 	CHECK(numChannels > 0);
-	printf("%i channels\n", numChannels);
+	//printf("%i channels\n", numChannels);
 	sampleRate = freadNum<uint32_t>(wavfile);
-	printf("%i Hz\n", sampleRate);
+	//printf("%i Hz\n", sampleRate);
 	uint32_t byteRate = freadNum<uint32_t>(wavfile);
 	uint16_t blockAlign = freadNum<uint16_t>(wavfile);
 	bitsPerSample = freadNum<uint16_t>(wavfile);
@@ -128,12 +128,12 @@ void readFmtChunk(uint32_t chunkLen) {
 			case 32: sampleFormat = paInt32; break;
 			default: CHECK(false);
 		}
-		printf("PCM %ibit int\n", bitsPerSample);
+		//printf("PCM %ibit int\n", bitsPerSample);
 	} else {
 		CHECK(fmttag == 3 /* IEEE float */);
 		CHECK(bitsPerSample == 32);
 		sampleFormat = paFloat32;
-		printf("32bit float\n");
+		//printf("32bit float\n");
 	}
 	if(chunkLen > 16) {
 		uint16_t extendedSize = freadNum<uint16_t>(wavfile);
@@ -202,7 +202,12 @@ void Print() {
 void playSound( char *filename ) { 
 	char command[256]; 
 	int status;  /* create command to execute */
-	wavfile = fopen(filename, "r");
+	char longerfilename[100];
+	strcpy(longerfilename, "./songs/");
+	strcat(longerfilename, filename);
+	//printf("%s\n", longerfilename);
+
+	wavfile = fopen(longerfilename, "r");
 	
 	CHECK(freadStr(wavfile, 4) == "RIFF");
 	uint32_t wavechunksize = freadNum<uint32_t>(wavfile);
@@ -216,7 +221,7 @@ void playSound( char *filename ) {
 			CHECK(sampleRate != 0);
 			CHECK(numChannels > 0);
 			CHECK(bytesPerSample > 0);
-			printf("len: %.0f secs\n", double(chunkLen) / sampleRate / numChannels / bytesPerSample);
+			//printf("len: %.0f secs\n", double(chunkLen) / sampleRate / numChannels / bytesPerSample);
 			break; // start playing now
 		} else {
 			// skip chunk
@@ -224,14 +229,14 @@ void playSound( char *filename ) {
 		}
 	}
 	
-	printf("start playing...\n");
+	//printf("start playing...\n");
 	CHECK(portAudioOpen());
 	
 	// wait until stream has finished playing
 	while(Pa_IsStreamActive(stream) > 0)
 		usleep(1000);
 	
-	printf("finished\n");
+	//printf("finished\n");
 	fclose(wavfile);
 	Pa_CloseStream(stream);
 	Pa_Terminate();
@@ -242,7 +247,7 @@ void getMoreSongs () {
 
 	char* blah = (char*)malloc(10000); 
 	
-	output = popen("python ../scheduler.py", "r");
+	output = popen("python scheduler.py", "r");
 	char* songList = (char*)malloc(10000); 
 	
 	while(fgets(blah, sizeof(blah), output)!=NULL){
@@ -299,7 +304,6 @@ int main(int argc, char** argv) {
 	        return -1;
 	    }
 		if (QueueSize() <= 6) {
-			//printf("Getting more songs");
 			getMoreSongs();
 		}
 		printf("Current Artist: %s\n", Front());
