@@ -8,23 +8,25 @@ import sys
 top = tk.Tk()
 header = tk.Text()
 sd = tk.Text()
-numSongs = 0
+MAX_SONGS_DISPLAY = 5
+numSongsDisplay = 0.0
+SONG_DISPLAY_LINE = 7.0
 
 def start():
     global p
     if os.path.exists("fifo.tmp"):
-        subprocess.Popen('rm fifo.tmp', shell=True) 
-    p = subprocess.Popen('./portaudio/SenProj', shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    songDisplay()
+        subprocess.Popen('rm fifo.tmp')
+    p = subprocess.Popen('./portaudio/SenProj')
+    song_display()
 
 def on_closing():
     p.terminate()   
     if os.path.exists("fifo.tmp"):
-        subprocess.Popen('rm fifo.tmp', shell=True)    
+        subprocess.Popen('rm fifo.tmp')
     top.destroy()
 
-def songDisplay():
-    global numSongs
+def song_display():
+    global numSongsDisplay
     os.mkfifo("fifo.tmp")
     if os.path.exists("fifo.tmp"):
         with open("fifo.tmp", "r") as fifo:
@@ -32,24 +34,19 @@ def songDisplay():
             duration = float(data.split()[len(data.split())-1])
             header.config(state=tk.NORMAL)
             header.insert(tk.INSERT, " ".join(data.split()[0:len(data.split())-1]) + "\n")
-            numSongs= numSongs + 1
-            if numSongs > 5:
-                header.delete('7.0', '8.0')
+            header.tag_remove("curr", str(numSongsDisplay + SONG_DISPLAY_LINE-1), str(numSongsDisplay + SONG_DISPLAY_LINE))
+            header.tag_add("curr", str(numSongsDisplay + SONG_DISPLAY_LINE), str(numSongsDisplay + SONG_DISPLAY_LINE+1))
+            header.tag_config("curr", background="yellow", foreground="black")
+            numSongsDisplay += 1
+            if numSongsDisplay > MAX_SONGS_DISPLAY:
+                header.delete(str(SONG_DISPLAY_LINE), str(SONG_DISPLAY_LINE+1))
+                numSongsDisplay = MAX_SONGS_DISPLAY
             header.grid()
             header.config(state=tk.DISABLED)
             fifo.close()
-    top.after(int(duration*1000), songDisplay)
+    top.after(int(duration*1000), song_display)
 
-def pause():
-    p.terminate()
-    if os.path.exists("fifo.tmp"):
-        subprocess.Popen('rm fifo.tmp', shell=True) 
-
-def skip():
-## IMPLEMENT ##
-    songDisplay()
-
-def createWidgets(top):
+def init_GUI(top):
     header.insert(tk.INSERT, "Otto!\n\n\n\nSongs:\n\n")
     header.tag_config("center", justify='center')
     header.tag_add("center", 1.0, "end")
@@ -58,18 +55,7 @@ def createWidgets(top):
     top.startButton = tk.Button(top, text='start',
         command=start)
     top.startButton.grid()
-    """top.skipButton = tk.Button(top, text='>>',
-    command=skip)
-    top.skipButton.grid()
-    top.quitButton = tk.Button(top, text='pause',
-        command=pause)
-    top.quitButton.grid()"""
 
-#def helloCallBack():
-   #tkMessageBox.showinfo( "Hello Python", "Hello World")
-
-createWidgets(top)
-#B = tk.Button(top, text ="Hello", command = helloCallBack)
+init_GUI(top)
 top.protocol("WM_DELETE_WINDOW", on_closing)
-#B.grid()
 top.mainloop()
