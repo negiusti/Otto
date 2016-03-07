@@ -27,18 +27,27 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(choice.time, "666")
         self.assertEqual(choice.genre, "folk punk")
         self.assertEqual(choice.tempo, "UP")
-        pass
 
     def test_choice_to_str(self):
         choice = Choice ("AJJ", "Distance.wav", "666", "folk punk", "UP")
         self.assertEqual(choice.to_str(), "AJJ|Distance.wav|666|")
-        pass
 
     def test_fitness(self):
         choice = Choice ("AJJ", "Distance.wav", "666", "folk punk", "UP")
         previousSong = Choice ("Angel Olsen", "Forgiven, Forgotten.wav", "666", "folk", "MED")
         self.assertEqual(fitness(choice, previousSong), 0)
-        pass
+
+    def test_find_fittest_song(self):
+        ### a database that never changes, for testing purposes ###
+        con = lite.connect('test_songs.db')
+        cur = con.cursor()
+        cur.execute("DROP TABLE IF EXISTS minimum")
+        cur.execute("CREATE TABLE minimum AS SELECT s.Filename, s.Title, s.Artist, s.TimeInSeconds, s.Genre, s.Tempo, s.LastPlay FROM Songs s INNER JOIN Artists a ON a.Artist = s.Artist WHERE a.LastPlayed BETWEEN ? AND ?", ('2006-01-01 10:00:00.1', str(datetime.now() - timedelta(days=1))))
+        cur.execute("SELECT * FROM minimum")
+        songChoices = cur.fetchall()
+        con.close()
+        previousSong = Choice ("Angel Olsen", "Forgiven, Forgotten.wav", "666", "folk", "MED")
+        self.assertEqual(find_fittest_song(previousSong, songChoices).to_str(), "JayMay|01 Gray or Blue.wav|204.4|")
 
 if __name__ == '__main__':
     unittest.main()

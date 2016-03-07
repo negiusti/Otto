@@ -44,9 +44,26 @@ def fitness(choice, previousSong):
     return abs((genre_value(choice.genre) + tempo_value(choice.tempo)) 
     - (genre_value(previousSong.genre) + tempo_value(previousSong.tempo)))
 
+### find the best (fittest) song choice to follow the previously scheduled song ###
+def find_fittest_song(previousSong, songChoices):
+    fitnessHash = {}
+    topScore = sys.maxint
+    for songChoice in songChoices:
+        ### convert the song to a choice object for the fitness function ###
+        choice = Choice(songChoice[Song.ARTIST], songChoice[Song.FILE], str(songChoice[Song.TIME]), songChoice[Song.GENRE], songChoice[Song.TEMPO])
+        if fitness(choice, previousSong) < topScore:
+            topScore = fitness(choice, previousSong)
+            if topScore in fitnessHash:
+                fitnessHash[topScore].append(choice)
+            else:
+                fitnessHash[topScore] = [choice]
+    ### pick a random song from the list of song choices with the best score ###
+    random.seed(datetime.now().second)
+    return fitnessHash[topScore][random.randint(0, len(fitnessHash[topScore])-1)]
+
 ### returns a random song from a list of songs ###
 def get_random_song(songs):
-    random.seed(datetime.now().second)
+    random.seed()
     song = songs[random.randint(0, len(songs)-1)]
     return Choice(song[Song.ARTIST], song[Song.FILE], str(song[Song.TIME]), song[Song.GENRE], song[Song.TEMPO])
 
@@ -54,7 +71,9 @@ def get_random_song(songs):
 
 ### 20 minute songs blocks ###
 SONG_BLOCK_TIME = 1200 
-### song blocks have +- 3 min allowed margin ###
+
+### song blocks have 3 min allowed margin (fuzz) ###
+### i.e., song blocks can only be between 20 and 23 minutes ###
 FUZZ = 180 
 
 ### all tempos/genres currently entered by the user ###
@@ -66,64 +85,60 @@ genres = ["french", "pop", "twee", "jangle pop", "tweemo",
 "generic indie", "surf rock", "alternative", "experimental", 
 "ska", "cabaret punk", "jazz", "hip hop"]
 
-try:
-    ### connect to the database ###
-    con = lite.connect('songs.db')
-    cur = con.cursor()
+def main():
+    try:
+        ### connect to the database ###
+        con = lite.connect('songs.db')
+        cur = con.cursor()
 
-    ### amount of time that has been scheduled so far in this block ###
-    timeSoFar = 0
+        ### amount of time that has been scheduled so far in this block ###
+        timeSoFar = 0
 
-    ### string of songs currently scheduled so far ###
-    songList = ""
+        ### string of songs currently scheduled so far ###
+        songList = ""
 
-    ### song that is currently being scheduled ###
-    song = None
-    
-    while timeSoFar < SONG_BLOCK_TIME:
-        fitnessHash = {}
-
-        ### create table of all songs whose artists have not been recently played ###
-        cur.execute("DROP TABLE IF EXISTS minimum")
-        cur.execute("CREATE TABLE minimum AS SELECT s.Filename, s.Title, s.Artist, s.TimeInSeconds, s.Genre, s.Tempo, s.LastPlay FROM Songs s INNER JOIN Artists a ON a.Artist = s.Artist WHERE a.LastPlayed BETWEEN ? AND ?", ('2006-01-01 10:00:00.1', str(datetime.now() - timedelta(minutes=2))))
-        cur.execute("SELECT * FROM minimum")
-        songChoices = cur.fetchall()
+        ### song that is currently being scheduled ###
+        song = None
         
-        topScore = sys.maxint
-        if (song == None):
-            song = get_random_song(songChoices)
-        else:
-            ### find the song choice with the best score ###
-            for songChoice in songChoices:
-                choice = Choice(songChoice[Song.ARTIST], songChoice[Song.FILE], str(songChoice[Song.TIME]), songChoice[Song.GENRE], songChoice[Song.TEMPO])
-                if fitness(choice, song) < topScore:
-                    topScore = fitness(choice, song)
-                    if topScore in fitnessHash:
-                        fitnessHash[topScore].append(choice)
-                    else:
-                        fitnessHash[topScore] = [choice]
-            ### pick a random song from the list of songs with the best score ###
-            random.seed(datetime.now().second)
-            song = fitnessHash[topScore][random.randint(0, len(fitnessHash[topScore])-1)]
-        
-        ### if the song fits in the current time block, schedule it ###
-        if ((timeSoFar + float(song.time)) < (SONG_BLOCK_TIME + FUZZ)):
-            ### update database ###
-            cur.execute("UPDATE Songs SET LastPlay=? WHERE Filename=?", (datetime.now(), song.file))
-            cur.execute("UPDATE Artists SET LastPlayed=? WHERE Artist=?", (datetime.now(), song.artist))
-            songList += song.to_str()
-            timeSoFar += float(song.time)
-        
-    ### send song list to python script ###
-    print songList
+        while timeSoFar < SONG_BLOCK_TIME:
+            ### create table of all songs whose artists have not been recently played ###
+            cur.execute("DROP TABLE IF EXISTS minimum")
+            cur.execute("CREATE TABLE minimum AS SELECT s.Filename, s.Title, s.Artist, s.TimeInSeconds, s.Genre, s.Tempo, s.LastPlay FROM Songs s INNER JOIN Artists a ON a.Artist = s.Artist WHERE a.LastPlayed BETWEEN ? AND ?", ('2006-01-01 10:00:00.1', str(datetime.now() - timedelta(minutes=1))))
+            cur.execute("SELECT * FROM minimum")
+            songChoices = cur.fetchall()
+            
+            ### if there is no previous song to choose based on, select at random ###
+            if (song == None):
+                song = get_random_song(songChoices)
+            else:
+                ### find the song choice with the best score ###
+                song = find_fittest_song(song, songChoices)
+            
+            ### if the song fits in the current time block, schedule it ###
+            if ((timeSoFar + float(song.time)) < (SONG_BLOCK_TIME + FUZZ)):
+                ### update last played time in database ###
+                cur.execute("UPDATE Songs SET LastPlay=? WHERE Filename=?", (datetime.now(), song.file))
+                cur.execute("UPDATE Artists SET LastPlayed=? WHERE Artist=?", (datetime.now(), song.artist))
+                
+                ### update song list that will be sent to the c++ program ###
+                songList += song.to_str()
+                
+                ### update the amount of time remaining in the song block that needs to be scheduled ###
+                timeSoFar += float(song.time)
+            
+        ### send song list to c++ program ###
+        print songList
 
-    ### save changes to database ###
-    con.commit()
-    
-except lite.Error, e:    
-    print "SQLITE Error %s:" % e.args[0]
-    sys.exit(1)
-    
-finally:    
-    if con:
-        con.close()
+        ### save changes to database ###
+        con.commit()
+        
+    except lite.Error, e:    
+        print "SQLITE Error %s:" % e.args[0]
+        sys.exit(1)
+        
+    finally:    
+        if con:
+            con.close()
+
+if __name__ == '__main__':
+    main()

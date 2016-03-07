@@ -5,49 +5,57 @@ import time
 import os
 import sys
 
-top = tk.Tk()
-header = tk.Text()
-sd = tk.Text()
+
 MAX_SONGS_DISPLAY = 5
-numSongsDisplay = 0.0
 SONG_DISPLAY_LINE = 7.0
 
 def start():
-    global p
-    if os.path.exists("fifo.tmp"):
-        subprocess.Popen('rm fifo.tmp')
-    p = subprocess.Popen('./portaudio/SenProj')
+    global proc
+    proc = subprocess.Popen('./portaudio/SenProj', bufsize=1, stdout=subprocess.PIPE, universal_newlines=True)
     song_display()
 
 def on_closing():
-    p.terminate()   
-    if os.path.exists("fifo.tmp"):
-        subprocess.Popen('rm fifo.tmp')
+    ### terminate the c program ###
+    if (proc != None):
+        proc.terminate()
+    ### close the GUI ###
     top.destroy()
 
 def song_display():
+    global proc
     global numSongsDisplay
-    os.mkfifo("fifo.tmp")
-    if os.path.exists("fifo.tmp"):
-        with open("fifo.tmp", "r") as fifo:
-            data = fifo.read()
-            duration = float(data.split()[len(data.split())-1])
-            header.config(state=tk.NORMAL)
-            header.insert(tk.INSERT, " ".join(data.split()[0:len(data.split())-1]) + "\n")
-            header.tag_remove("curr", str(numSongsDisplay + SONG_DISPLAY_LINE-1), str(numSongsDisplay + SONG_DISPLAY_LINE))
-            header.tag_add("curr", str(numSongsDisplay + SONG_DISPLAY_LINE), str(numSongsDisplay + SONG_DISPLAY_LINE+1))
-            header.tag_config("curr", background="yellow", foreground="black")
-            numSongsDisplay += 1
-            if numSongsDisplay > MAX_SONGS_DISPLAY:
-                header.delete(str(SONG_DISPLAY_LINE), str(SONG_DISPLAY_LINE+1))
-                numSongsDisplay = MAX_SONGS_DISPLAY
-            header.grid()
-            header.config(state=tk.DISABLED)
-            fifo.close()
+    data = ""
+    ### communicate with the c program ###
+    data = proc.stdout.readline()
+    duration = float(data.split()[len(data.split())-1])
+    header.config(state=tk.NORMAL)
+    ### display the current song ###
+    header.insert(tk.INSERT, " ".join(data.split()[0:len(data.split())-1]) + "\n")
+    
+    ### unhighlight the previous song ###
+    header.tag_remove("curr_song", str(numSongsDisplay + SONG_DISPLAY_LINE-1), str(numSongsDisplay + SONG_DISPLAY_LINE))
+
+    ### highlight the current song ###
+    header.tag_add("curr_song", str(numSongsDisplay + SONG_DISPLAY_LINE), str(numSongsDisplay + SONG_DISPLAY_LINE+1))
+    header.tag_config("curr_song", background="yellow", foreground="black")
+
+    ### delete a row to make room ###
+    numSongsDisplay += 1
+    if numSongsDisplay > MAX_SONGS_DISPLAY:
+        header.delete(str(SONG_DISPLAY_LINE), str(SONG_DISPLAY_LINE+1))
+        numSongsDisplay = MAX_SONGS_DISPLAY
+    header.grid()
+    header.config(state=tk.DISABLED)
+
+    ### call song_display() again when the song is over ###
     top.after(int(duration*1000), song_display)
 
 def init_GUI(top):
-    header.insert(tk.INSERT, "Otto!\n\n\n\nSongs:\n\n")
+    global proc
+    global numSongsDisplay
+    proc = None
+    numSongsDisplay = 0.0
+    header.insert(tk.INSERT, "\n\n\n\nSongs:\n\n")
     header.tag_config("center", justify='center')
     header.tag_add("center", 1.0, "end")
     header.grid()
@@ -56,6 +64,10 @@ def init_GUI(top):
         command=start)
     top.startButton.grid()
 
+top = tk.Tk()
+top.wm_title("Otto")
+header = tk.Text()
+sd = tk.Text()
 init_GUI(top)
 top.protocol("WM_DELETE_WINDOW", on_closing)
 top.mainloop()
