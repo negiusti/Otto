@@ -47,7 +47,7 @@ class SchedulerTests(unittest.TestCase):
         songChoices = cur.fetchall()
         con.close()
         previousSong = Choice ("Angel Olsen", "Forgiven, Forgotten.wav", "666", "folk", "MED")
-        self.assertEqual(find_fittest_song(previousSong, songChoices).to_str(), "JayMay|01 Gray or Blue.wav|204.4|")
+        self.assertEqual(find_fittest_song(previousSong, songChoices).to_str(), "American Football|01 Never Meant.wav|268.333333333|")
 
 if __name__ == '__main__':
     unittest.main()

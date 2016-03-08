@@ -126,10 +126,11 @@ void readFmtChunk(uint32_t chunkLen) {
 	}
 }
 
-void playSound( char *filename ) { 
+void playSong( char *filename ) { 
 	char command[256]; 
 	int status;  
 	char longerfilename[100];
+	// add path to filename
 	strcpy(longerfilename, SONGS_LOCATION);
 	strcat(longerfilename, filename);
 	wavfile = fopen(longerfilename, "r");
@@ -147,13 +148,15 @@ void playSound( char *filename ) {
 			CHECK(sampleRate != 0);
 			CHECK(numChannels > 0);
 			CHECK(bytesPerSample > 0);
+			// everything looks good, we can play the song now
 			break;
 		} else {
-			// skip chunk
+			// keep looking
 			CHECK(fseek(wavfile, chunkLen, SEEK_CUR) == 0);
 		}
 	}
 	
+	// play the song
 	CHECK(portAudioOpen());
 	
 	// wait until stream has finished playing
@@ -175,13 +178,16 @@ void getMoreSongs (char* testInput) {
 		songList = testInput;
 	}
 	else {
+		// exec the python scheduler
 		output = popen(SCHEDULER, "r");
-		while(fgets(songInfo, sizeof(songInfo), output)!=NULL){
+		CHECK(output != NULL);
+		while(fgets(songInfo, sizeof(songInfo), output) != NULL){
 	        strcat(songList, songInfo);
 	    }
-	    pclose(output); 
+	    pclose(output);
 	}
     
+    // parse scheduler info
 	char ** res  = NULL;
 	char *  p    = strtok (songList, "|");
 	int n_spaces = 0, i;
@@ -201,6 +207,7 @@ void getMoreSongs (char* testInput) {
 	res[n_spaces-1] = 0;
 
 	i = 0;
+	// enqueue songs
 	while (res[i] != NULL) {
 		songQueue.push(res[i++]);
 	}
@@ -212,7 +219,7 @@ int main(int argc, char** argv) {
 	char* song;
 	char* duration;
 	char* testingSongsList = NULL;
-	bool doNotPlay = false;
+	bool doNotPlay = false; // for testing purposes only
 
 	if (argc > 1 && strcmp(argv[1], "-s") == 0) {
 		doNotPlay = true;
@@ -224,6 +231,7 @@ int main(int argc, char** argv) {
 	}
 	getMoreSongs(testingSongsList);
 
+	// software should run forever... until the GUI terminates it
 	while(!songQueue.empty()) {
 		if (testingSongsList == NULL && songQueue.size() <= 6) {
 			getMoreSongs(NULL);
@@ -237,7 +245,7 @@ int main(int argc, char** argv) {
 		printf("%s %s %s\n", artist, song, duration);
 		fflush(stdout);
     	if (!doNotPlay) {
-			playSound(song);
+			playSong(song);
 		}
 	}	
 	return 0;
